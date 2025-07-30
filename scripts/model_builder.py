@@ -2,7 +2,6 @@ import pandas as pd
 import os
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
 import joblib
 
 
@@ -55,20 +54,8 @@ clf = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42, cla
 clf.fit(X_train, y_train)
 
 
-y_pred = clf.predict(X_test)
-report = classification_report(y_test, y_pred)
-
-print("result：")
-print(report)
-
-
 os.makedirs("models", exist_ok=True)
 joblib.dump(clf, MODEL_OUTPUT_PATH)
 
 
-os.makedirs("docs", exist_ok=True)
-with open(REPORT_OUTPUT_PATH, "w") as f:
-    f.write(report)
-
 print(f"\n model saved to {MODEL_OUTPUT_PATH}")
-print(f"report saved to {REPORT_OUTPUT_PATH}")
