@@ -5,57 +5,43 @@ from sklearn.model_selection import train_test_split
 import joblib
 
 
-FEATURE_PATH = "docs/features_2025-07-22.csv"
-ORIGINAL_DATA_PATH = "data"
+FEATURE_PATH = "docs/features_2025-07-31.csv"
 MODEL_OUTPUT_PATH = "models/random_forest_model.pkl"
-REPORT_OUTPUT_PATH = "docs/model_report.txt"
+
+def main():
+
+    df = pd.read_csv(FEATURE_PATH)
+    df["code"] = df["code"].astype(str)
+    df["date"] = pd.to_datetime(df["date"])
 
 
-df = pd.read_csv(FEATURE_PATH)
-df["code"] = df["code"].astype(str)
-df["date"] = pd.to_datetime(df["date"])
+    # generate label
+    df = df.sort_values(by=["code", "date"]).reset_index(drop=True)
+    df["future_close"] = df.groupby("code")["close"].shift(-5)
+    df["future_return"] = df["future_close"] / df["close"] - 1
+    df["label"] = (df["future_return"] > 0).astype(int)
+    df = df.dropna()
 
 
-def load_close_prices():
-    close_dict = {}
-    for filename in os.listdir(ORIGINAL_DATA_PATH):
-        if filename.endswith(".csv") and filename != "selected_stocks.csv":
-            code = filename.replace(".csv", "")
-            try:
-                raw = pd.read_csv(os.path.join(ORIGINAL_DATA_PATH, filename), parse_dates=["日期"])
-                raw = raw[["日期", "收盘"]].rename(columns={"日期": "date", "收盘": "close"})
-                raw["code"] = code
-                close_dict[code] = raw
-            except Exception as e:
-                print(f"Failed loading close for {code}: {e}")
-    return pd.concat(close_dict.values(), ignore_index=True)
+    exclude_cols = ["code", "date", "close", "future_close", "future_return", "label"]
+    X = df[[col for col in df.columns if col not in exclude_cols]]
+    y = df["label"]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, stratify=y, random_state=42
+    )
 
 
-close_df = load_close_prices()
-df = pd.merge(df, close_df, on=["code", "date"], how="left")
-
-# generate label
-df = df.sort_values(by=["code", "date"]).reset_index(drop=True)
-df["future_close"] = df.groupby("code")["close"].shift(-5)
-df["future_return"] = df["future_close"] / df["close"] - 1
-df["label"] = (df["future_return"] > 0).astype(int)
-df = df.dropna(subset=["momentum", "volatility", "rsi", "label"])
+    clf = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42, class_weight="balanced")
+    clf.fit(X_train, y_train)
 
 
-X = df[["momentum", "volatility", "rsi"]]
-y = df["label"]
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, stratify=y, random_state=42
-)
+    os.makedirs("models", exist_ok=True)
+    joblib.dump(clf, MODEL_OUTPUT_PATH)
 
 
-clf = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42, class_weight="balanced")
-clf.fit(X_train, y_train)
+    print(f"\n model saved to {MODEL_OUTPUT_PATH}")
 
 
-os.makedirs("models", exist_ok=True)
-joblib.dump(clf, MODEL_OUTPUT_PATH)
-
-
-print(f"\n model saved to {MODEL_OUTPUT_PATH}")
+if __name__=="__main__":
+    main()
